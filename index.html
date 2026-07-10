@@ -1,0 +1,1550 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title id="doc-title">دفتر ورود کالا | بیله‌ندا</title>
+
+<!-- PWA: installable app metadata -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#5B2333">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="دفتر انبار">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" href="favicon.png" type="image/png">
+
+<!-- No external network requests on page load: this file works fully offline.
+     Fonts fall back to the system's own Persian/monospace fonts, and the
+     Excel (XLSX) library is only fetched on-demand, the moment you actually
+     click an Excel import/export button — never automatically on open. -->
+<style>
+  :root{
+    --bg:#FAF7F1; --surface:#FFFFFF; --surface-alt:#F2EAE0;
+    --ink:#2A2024; --ink-soft:#6B5D5C;
+    --primary:#5B2333; --primary-light:#7A3347; --primary-dark:#3D1723;
+    --gold:#B8912B; --gold-light:#EADFB8;
+    --sage:#5F7D5A; --sage-bg:#E7EEE3;
+    --rust:#AE4235; --rust-bg:#F6E4E0;
+    --border:#E6DBC9;
+    --shadow: 0 2px 10px rgba(60,35,30,.06), 0 1px 2px rgba(60,35,30,.08);
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{background:var(--bg);color:var(--ink);font-family:'Vazirmatn','Segoe UI',Tahoma,Arial,sans-serif;min-height:100vh;}
+  .mono{font-family:Consolas, 'SF Mono', Menlo, 'Ubuntu Mono', 'IBM Plex Mono', monospace;font-variant-numeric:slashed-zero;font-feature-settings:"zero" 1;}
+  body{font-variant-numeric:slashed-zero;}
+  #app{display:flex;min-height:100vh;}
+
+  #sidebar{width:230px;flex-shrink:0;background:linear-gradient(180deg,var(--primary-dark),var(--primary));color:#F4E9E3;display:flex;flex-direction:column;padding:22px 14px;position:sticky;top:0;height:100vh;overflow-y:auto;}
+  .brand{display:flex;align-items:center;gap:10px;padding:0 6px 20px 6px;border-bottom:1px solid rgba(244,233,227,.18);margin-bottom:16px;}
+  .brand-mark{width:34px;height:34px;border-radius:8px;background:var(--gold);display:flex;align-items:center;justify-content:center;font-weight:800;color:var(--primary-dark);font-size:15px;flex-shrink:0;overflow:hidden;}
+  .brand-mark img{width:100%;height:100%;object-fit:cover;}
+  .brand-text b{display:block;font-size:14px;font-weight:700;line-height:1.3;}
+  .brand-text span{display:block;font-size:11px;color:#D9BFC4;}
+  nav{display:flex;flex-direction:column;gap:3px;}
+  .nav-btn{display:flex;align-items:center;gap:10px;background:transparent;border:none;color:#EFDCDD;padding:10px 12px;border-radius:9px;font-family:inherit;font-size:13px;cursor:pointer;text-align:right;transition:background .15s, color .15s;}
+  .nav-btn svg{flex-shrink:0;opacity:.85;}
+  .nav-btn:hover{background:rgba(244,233,227,.10);}
+  .nav-btn.active{background:var(--gold);color:var(--primary-dark);font-weight:700;}
+  .nav-btn.active svg{opacity:1;}
+  .sidebar-foot{margin-top:auto;padding-top:14px;font-size:10.5px;color:#C8A6AB;border-top:1px solid rgba(244,233,227,.15);}
+
+  #main{flex:1;padding:26px 30px;max-width:1240px;}
+  .page{display:none;}
+  .page.active{display:block;animation:fade .25s ease;}
+  @keyframes fade{from{opacity:0;transform:translateY(4px);}to{opacity:1;transform:translateY(0);}}
+
+  h1.page-title{font-size:21px;font-weight:800;margin:0 0 4px;}
+  p.page-sub{color:var(--ink-soft);font-size:13px;margin:0 0 22px;}
+
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:14px;box-shadow:var(--shadow);padding:20px 22px;margin-bottom:18px;}
+  .card h3{margin:0 0 14px;font-size:14.5px;font-weight:700;color:var(--primary);}
+  .card p.card-desc{font-size:12px;color:var(--ink-soft);margin:-8px 0 14px;}
+
+  .form-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px 16px;}
+  .field{display:flex;flex-direction:column;gap:5px;}
+  .field label{font-size:12.5px;font-weight:600;color:var(--ink-soft);}
+  .field label .req{color:var(--rust);}
+  .field input, .field select{border:1.5px solid var(--border);border-radius:9px;padding:9px 11px;font-family:'Vazirmatn','Segoe UI',Tahoma,Arial,sans-serif;font-size:13.5px;background:var(--surface);color:var(--ink);outline:none;transition:border-color .15s, box-shadow .15s;}
+  .field input.mono, .field select.mono{font-family:Consolas, 'SF Mono', Menlo, 'Ubuntu Mono', 'IBM Plex Mono', monospace;font-variant-numeric:slashed-zero;font-feature-settings:"zero" 1;}
+  .field input:focus, .field select:focus{border-color:var(--primary-light);box-shadow:0 0 0 3px rgba(91,35,51,.12);}
+  .field input.invalid{border-color:var(--rust);box-shadow:0 0 0 3px rgba(174,66,53,.12);}
+  .field input:disabled, .field select:disabled{background:var(--surface-alt);color:var(--ink-soft);cursor:not-allowed;}
+  .field .hint{font-size:11px;color:var(--ink-soft);}
+  .field .err{font-size:11px;color:var(--rust);font-weight:600;display:none;}
+  .field .err.show{display:block;}
+  .status-note{grid-column:1/-1;border-radius:10px;padding:11px 14px;font-size:12.5px;display:none;line-height:1.8;}
+  .status-note.show{display:block;}
+  .status-note.matched{background:var(--sage-bg);color:#33512F;border:1px solid var(--sage);}
+  .status-note.newbatch{background:var(--gold-light);color:#5C4A12;border:1px solid var(--gold);}
+  .status-note b{font-family:Consolas, 'SF Mono', Menlo, 'Ubuntu Mono', 'IBM Plex Mono', monospace;}
+  .warn-banner{background:var(--gold-light);border:1px solid var(--gold);color:#5C4A12;padding:9px 12px;border-radius:9px;font-size:12.5px;margin-top:4px;display:none;grid-column:1/-1;}
+  .warn-banner.show{display:block;}
+
+  .form-actions{display:flex;gap:10px;margin-top:18px;align-items:center;flex-wrap:wrap;}
+  button.primary-btn{background:var(--primary);color:#fff;border:none;border-radius:9px;padding:11px 22px;font-family:inherit;font-size:13.5px;font-weight:700;cursor:pointer;transition:background .15s, transform .1s;}
+  button.primary-btn:hover{background:var(--primary-light);}
+  button.primary-btn:active{transform:scale(.98);}
+  button.ghost-btn{background:transparent;color:var(--primary);border:1.5px solid var(--primary);border-radius:9px;padding:9.5px 18px;font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;}
+  button.ghost-btn:hover{background:var(--surface-alt);}
+  button.small-btn{background:var(--surface-alt);color:var(--ink);border:1px solid var(--border);border-radius:7px;padding:5px 10px;font-family:inherit;font-size:12px;cursor:pointer;}
+  button.small-btn.danger{color:var(--rust);border-color:var(--rust-bg);}
+  button.small-btn:hover{filter:brightness(.96);}
+  button.danger-btn{background:var(--rust);color:#fff;border:none;border-radius:9px;padding:10px 18px;font-family:inherit;font-size:13px;font-weight:700;cursor:pointer;}
+  button.danger-btn:hover{background:#8f342a;}
+
+  .search-box{display:flex;gap:10px;margin-bottom:6px;}
+  .search-box input{flex:1;border:2px solid var(--primary);border-radius:11px;padding:13px 16px;font-family:Consolas, 'SF Mono', Menlo, 'Ubuntu Mono', 'IBM Plex Mono', monospace;font-size:16px;outline:none;background:var(--surface);}
+  .search-results{margin-top:16px;display:flex;flex-direction:column;gap:12px;}
+  .result-card{background:var(--surface);border:1px solid var(--border);border-right:5px solid var(--gold);border-radius:11px;padding:16px 18px;box-shadow:var(--shadow);}
+  .result-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap;}
+  .result-head h4{margin:0;font-size:14.5px;font-weight:700;}
+  .badge{background:var(--sage-bg);color:var(--sage);border-radius:20px;padding:3px 11px;font-size:11.5px;font-weight:700;}
+  .badge.warn{background:var(--rust-bg);color:var(--rust);}
+  .result-codes{display:flex;gap:18px;margin:8px 0 4px;flex-wrap:wrap;font-family:Consolas, 'SF Mono', Menlo, 'Ubuntu Mono', 'IBM Plex Mono', monospace;font-size:12.5px;color:var(--ink-soft);}
+  .result-codes b{color:var(--ink);}
+  .agg-row{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-top:12px;}
+  .agg-item{background:var(--surface-alt);border-radius:9px;padding:9px 10px;text-align:center;}
+  .agg-item.diff-bad{background:var(--rust-bg);}
+  .agg-item.diff-ok{background:var(--sage-bg);}
+  .agg-item .n{font-family:Consolas, 'SF Mono', Menlo, 'Ubuntu Mono', 'IBM Plex Mono', monospace;font-weight:700;font-size:15px;}
+  .agg-item .l{font-size:10.5px;color:var(--ink-soft);margin-top:2px;}
+  .part-table{width:100%;border-collapse:collapse;margin-top:12px;font-size:12px;}
+  .part-table th,.part-table td{padding:6px 8px;text-align:center;border-bottom:1px solid var(--border);}
+  .part-table th{color:var(--ink-soft);font-weight:600;}
+  .empty-state{color:var(--ink-soft);font-size:13px;text-align:center;padding:30px 10px;}
+
+  .table-wrap{overflow-x:auto;}
+  table.data-table{width:100%;border-collapse:collapse;font-size:12px;min-width:1200px;}
+  table.data-table th{background:var(--surface-alt);color:var(--ink-soft);font-weight:700;padding:8px 6px;text-align:center;position:sticky;top:0;font-size:11px;}
+  table.data-table td{padding:5px;text-align:center;border-bottom:1px solid var(--border);}
+  table.data-table tr:hover td{background:var(--surface-alt);}
+  table.data-table input, table.data-table select{width:100%;border:1px solid var(--border);border-radius:6px;padding:5px 4px;font-family:Consolas, 'SF Mono', Menlo, 'Ubuntu Mono', 'IBM Plex Mono', monospace;font-size:11.5px;background:var(--surface);}
+  table.data-table input.invalid{border-color:var(--rust);background:var(--rust-bg);}
+  .filters-row{display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap;align-items:center;}
+  .filters-row input{border:1.5px solid var(--border);border-radius:8px;padding:8px 10px;font-family:inherit;font-size:12.5px;}
+
+  .kpi-grid{display:grid;grid-template-columns:repeat(auto-fit, minmax(150px, 1fr));gap:14px;margin-bottom:18px;}
+  .kpi-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px 16px;box-shadow:var(--shadow);position:relative;overflow:hidden;}
+  .kpi-card::after{content:"";position:absolute;top:0;left:0;width:5px;height:100%;background:var(--kc,var(--primary));}
+  .kpi-card .label{font-size:12px;color:var(--ink-soft);font-weight:600;}
+  .kpi-card .value{font-family:Consolas, 'SF Mono', Menlo, 'Ubuntu Mono', 'IBM Plex Mono', monospace;font-size:23px;font-weight:700;margin-top:6px;}
+  .kpi-card .sub{font-size:11px;color:var(--ink-soft);margin-top:3px;}
+  .chart-wrap{display:flex;align-items:flex-end;gap:6px;height:180px;padding:10px 4px 0;}
+  .chart-bar-col{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;gap:6px;}
+  .chart-bar{width:100%;max-width:26px;background:linear-gradient(180deg,var(--gold),var(--primary));border-radius:5px 5px 2px 2px;min-height:2px;}
+  .chart-bar-col .lbl{font-size:9.5px;color:var(--ink-soft);font-family:Consolas, 'SF Mono', Menlo, 'Ubuntu Mono', 'IBM Plex Mono', monospace;}
+  .chart-bar-col .val{font-size:9.5px;color:var(--ink);font-weight:700;}
+  table.customs-table{width:100%;border-collapse:collapse;font-size:12.5px;}
+  table.customs-table th,table.customs-table td{padding:8px;text-align:center;border-bottom:1px solid var(--border);}
+  table.customs-table th{color:var(--ink-soft);font-weight:700;background:var(--surface-alt);}
+  .diff-pill{border-radius:20px;padding:3px 10px;font-weight:700;font-family:Consolas, 'SF Mono', Menlo, 'Ubuntu Mono', 'IBM Plex Mono', monospace;font-size:12px;}
+  .diff-pill.bad{background:var(--rust-bg);color:var(--rust);}
+  .diff-pill.ok{background:var(--sage-bg);color:var(--sage);}
+
+  .report-options{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;}
+  .report-opt{background:var(--surface);border:1.5px solid var(--border);border-radius:13px;padding:18px;text-align:center;display:flex;flex-direction:column;}
+  .report-opt .ic{font-size:26px;margin-bottom:8px;}
+  .report-opt h4{margin:0 0 6px;font-size:13.5px;}
+  .report-opt p{margin:0 0 12px;font-size:11.5px;color:var(--ink-soft);line-height:1.6;flex:1;}
+  .report-opt input{width:100%;margin-bottom:10px;border:1.5px solid var(--border);border-radius:8px;padding:8px 10px;font-family:Consolas, 'SF Mono', Menlo, 'Ubuntu Mono', 'IBM Plex Mono', monospace;text-align:center;}
+  .report-btn-row{display:flex;gap:8px;}
+  .report-btn-row button{flex:1;}
+
+  .prod-row{display:flex;justify-content:space-between;align-items:center;padding:9px 12px;background:var(--surface-alt);border-radius:9px;font-size:12.5px;gap:10px;}
+
+  .lock-box{max-width:360px;margin:30px auto;text-align:center;}
+  .lock-box input{width:100%;border:1.5px solid var(--border);border-radius:9px;padding:11px 14px;font-family:Consolas, 'SF Mono', Menlo, 'Ubuntu Mono', 'IBM Plex Mono', monospace;text-align:center;font-size:15px;margin-bottom:12px;}
+  .settings-row{display:flex;gap:14px;align-items:flex-end;flex-wrap:wrap;margin-bottom:10px;}
+  .settings-row .field{flex:1;min-width:200px;}
+  .logo-preview{width:56px;height:56px;border-radius:10px;background:var(--surface-alt);display:flex;align-items:center;justify-content:center;overflow:hidden;border:1.5px solid var(--border);flex-shrink:0;}
+  .logo-preview img{width:100%;height:100%;object-fit:cover;}
+  .danger-zone{border:1.5px solid var(--rust-bg);background:var(--rust-bg);}
+  .danger-zone h3{color:var(--rust);}
+
+  #toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--ink);color:#fff;padding:12px 22px;border-radius:10px;font-size:13px;opacity:0;pointer-events:none;transition:all .25s;z-index:999;box-shadow:0 6px 18px rgba(0,0,0,.25);}
+  #toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+  #toast.error{background:var(--rust);}
+
+  #printArea{display:none;}
+  @media print{ #app{display:none !important;} #printArea{display:block !important;} body{background:#fff;} }
+  .print-header{display:flex;justify-content:space-between;align-items:center;border-bottom:3px solid var(--primary);padding-bottom:10px;margin-bottom:16px;}
+  .print-header h2{margin:0;color:var(--primary);}
+  .print-header span{font-family:Consolas, 'SF Mono', Menlo, 'Ubuntu Mono', 'IBM Plex Mono', monospace;font-size:12px;color:var(--ink-soft);}
+  .print-summary{display:flex;gap:14px;margin-bottom:16px;flex-wrap:wrap;}
+  .print-summary div{background:var(--surface-alt);border-radius:8px;padding:8px 14px;font-size:12.5px;}
+  table.print-table{width:100%;border-collapse:collapse;font-size:11px;}
+  table.print-table th,table.print-table td{border:1px solid #ccc;padding:5px;text-align:center;}
+  table.print-table th{background:var(--surface-alt);}
+
+  @media (max-width: 980px){
+    .form-grid{grid-template-columns:repeat(2,1fr);}
+    .kpi-grid{grid-template-columns:repeat(2,1fr);}
+    .report-options{grid-template-columns:1fr;}
+  }
+</style>
+</head>
+<body>
+
+<div id="app">
+  <aside id="sidebar">
+    <div class="brand">
+      <div class="brand-mark" id="brand-mark">Bi</div>
+      <div class="brand-text"><b id="brand-title-text">دفتر ورود کالا</b><span>انبار بیله‌ندا</span></div>
+    </div>
+    <nav>
+      <button class="nav-btn" data-page="entry" onclick="showPage('entry')">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+        ثبت ورودی جدید
+      </button>
+      <button class="nav-btn" data-page="search" onclick="showPage('search')">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>
+        جستجوی سریع
+      </button>
+      <button class="nav-btn" data-page="records" onclick="showPage('records')">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M9 4v16"/></svg>
+        لیست رکوردها
+      </button>
+      <button class="nav-btn active" data-page="dashboard" onclick="showPage('dashboard')">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19V9M12 19V5M20 19v-7"/></svg>
+        داشبورد
+      </button>
+      <button class="nav-btn" data-page="reports" onclick="showPage('reports')">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
+        گزارش‌ها
+      </button>
+      <button class="nav-btn" data-page="products" onclick="showPage('products')">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 7 12 3 4 7v10l8 4 8-4Z"/></svg>
+        مدیریت محصولات
+      </button>
+      <button class="nav-btn" data-page="admin" onclick="showPage('admin')">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2 4 6v6c0 5 3.5 8.5 8 10 4.5-1.5 8-5 8-10V6z"/></svg>
+        مدیریت کلی
+      </button>
+    </nav>
+    <div class="sidebar-foot">انبار مرکزی شرکت وایا سلامت قشم - مدیریت هومن حق ستان</div>
+  </aside>
+
+  <main id="main">
+
+    <!-- ================= ENTRY FORM ================= -->
+    <section class="page" id="page-entry">
+      <h1 class="page-title">ثبت ورودی جدید</h1>
+      <p class="page-sub">فقط Batch No را وارد کنید — اگر قبلاً ثبت شده باشد، GTIN، LOT و نام محصول خودکار پر می‌شود.</p>
+
+      <div class="card">
+        <h3 id="form-mode-title">ثبت پارت جدید</h3>
+        <div class="form-grid" id="entry-form">
+
+          <div class="field">
+            <label>Batch No <span class="req">*</span></label>
+            <input type="text" id="f-batch" class="mono" placeholder="مثلاً 63580" oninput="onBatchInput()">
+            <div class="err" id="err-batch">Batch الزامی است.</div>
+          </div>
+
+          <div class="field">
+            <label>GTIN <span class="req">*</span></label>
+            <input type="text" id="f-gtin" class="mono" maxlength="13" placeholder="۱۳ رقم" oninput="onGtinInput()">
+            <div class="hint">باید دقیقاً ۱۳ رقم باشد.</div>
+            <div class="err" id="err-gtin">GTIN باید دقیقاً ۱۳ رقم عددی باشد.</div>
+          </div>
+
+          <div class="field">
+            <label>LOT <span class="req">*</span></label>
+            <input type="text" id="f-lot" class="mono" placeholder="مثلاً 247725">
+            <div class="err" id="err-lot">LOT الزامی است.</div>
+          </div>
+
+          <div class="field" style="grid-column:span 2;">
+            <label>Product Name <span class="req">*</span></label>
+            <input type="text" id="f-product" list="product-names-list" placeholder="نام محصول را انتخاب یا تایپ کنید">
+            <datalist id="product-names-list"></datalist>
+            <div class="err" id="err-product">نام محصول الزامی است.</div>
+          </div>
+
+          <div class="field">
+            <label>تعداد کل گمرکی (اعلامی)</label>
+            <input type="number" id="f-customs-total" class="mono" min="0" step="1" placeholder="مثلاً 3000">
+            <div class="hint">مجموع کل مورد انتظار طبق گمرک برای این Batch.</div>
+          </div>
+
+          <div class="status-note" id="batch-status-note"></div>
+          <div class="warn-banner" id="batch-warning"></div>
+
+          <div class="field">
+            <label>تاریخ انقضا (میلادی) <span class="req">*</span></label>
+            <input type="text" id="f-expiry" class="mono" placeholder="مثلاً 2026/12">
+            <div class="err" id="err-expiry">فرمت باید YYYY/MM باشد، مثلاً 2026/12.</div>
+          </div>
+
+          <div class="field">
+            <label>شماره پارت</label>
+            <input type="number" id="f-part" class="mono" min="1" placeholder="خودکار">
+            <div class="hint">در صورت خالی بودن، خودکار محاسبه می‌شود.</div>
+          </div>
+
+          <div class="field">
+            <label>تعداد کل (این پارت) <span class="req">*</span></label>
+            <input type="number" id="f-qty" min="0" step="1" placeholder="0" oninput="onQtyInput()">
+            <div class="err" id="err-qty">تعداد باید عدد صحیح و مثبت باشد.</div>
+          </div>
+
+          <div class="field"><label>کارتن</label><input type="number" id="f-carton" min="0" step="1" placeholder="0"></div>
+          <div class="field"><label>کسری برند</label><input type="number" id="f-kbrand" min="0" step="1" placeholder="0"></div>
+          <div class="field"><label>کسری گمرک</label><input type="number" id="f-kcustoms" min="0" step="1" placeholder="0"></div>
+          <div class="field"><label>ضایعات</label><input type="number" id="f-waste" min="0" step="1" placeholder="0"></div>
+        </div>
+
+        <div class="form-actions">
+          <button class="primary-btn" onclick="submitEntry()">ثبت رکورد ✓</button>
+          <button class="ghost-btn" id="cancel-edit-btn" style="display:none" onclick="cancelEdit()">لغو ویرایش</button>
+          <button class="ghost-btn" onclick="clearForm()">پاک‌کردن فرم</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= SEARCH ================= -->
+    <section class="page" id="page-search">
+      <h1 class="page-title">جستجوی سریع</h1>
+      <p class="page-sub">شماره Batch یا GTIN را وارد کنید تا تمام اطلاعات آن کالا فوراً نمایش داده شود.</p>
+      <div class="card">
+        <div class="search-box">
+          <input type="text" id="search-input" class="mono" placeholder="GTIN یا Batch No را تایپ کنید…" oninput="runSearch()">
+        </div>
+        <div class="search-results" id="search-results"></div>
+      </div>
+    </section>
+
+    <!-- ================= RECORDS ================= -->
+    <section class="page" id="page-records">
+      <h1 class="page-title">لیست کامل رکوردها</h1>
+      <p class="page-sub">همه پارت‌های ثبت‌شده — هر سلول قابل ویرایش سریع است؛ تغییرات را یکجا ذخیره کنید.</p>
+      <div class="card">
+        <div class="filters-row">
+          <input type="text" id="rec-filter" class="mono" placeholder="فیلتر بر اساس Batch / GTIN / نام محصول…" oninput="renderRecords()">
+          <button class="primary-btn" onclick="saveAllRecordChanges()">💾 ذخیره همه تغییرات</button>
+        </div>
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>تاریخ ثبت</th><th>Batch</th><th>GTIN</th><th>LOT</th><th>محصول</th><th>انقضا</th><th>پارت</th>
+                <th>تعداد</th><th>کارتن</th><th>ک.برند</th><th>ک.گمرک</th><th>ضایعات</th><th>حذف</th>
+              </tr>
+            </thead>
+            <tbody id="records-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= DASHBOARD ================= -->
+    <section class="page active" id="page-dashboard">
+      <h1 class="page-title">داشبورد انبار</h1>
+      <p class="page-sub" id="dash-date-sub"></p>
+      <div class="kpi-grid" id="kpi-grid"></div>
+      <div class="card">
+        <h3>روند ورود کالا (۱۴ روز اخیر)</h3>
+        <div class="chart-wrap" id="chart-wrap"></div>
+      </div>
+      <div class="card">
+        <h3>وضعیت گمرکی به تفکیک Batch</h3>
+        <p class="card-desc">مقایسهٔ تعداد کل گمرکی اعلامی با مجموع پارت‌های دریافت‌شده — کسری‌های بزرگ‌تر بالاتر.</p>
+        <div class="table-wrap"><table class="customs-table" id="customs-table"></table></div>
+      </div>
+    </section>
+
+    <!-- ================= REPORTS ================= -->
+    <section class="page" id="page-reports">
+      <h1 class="page-title">گزارش‌ها</h1>
+      <p class="page-sub">هر گزارش را هم به PDF و هم به Excel می‌توانید بگیرید.</p>
+      <div class="report-options">
+        <div class="report-opt">
+          <div class="ic">📅</div>
+          <h4>گزارش ورود امروز</h4>
+          <p>تمام پارت‌های ثبت‌شده در امروز به‌همراه جمع کل.</p>
+          <div class="report-btn-row"><button class="primary-btn" onclick="printReport('today')">PDF</button><button class="ghost-btn" onclick="exportExcel('today')">Excel</button></div>
+        </div>
+        <div class="report-opt">
+          <div class="ic">🗂️</div>
+          <h4>گزارش کلی</h4>
+          <p>تمام رکوردهای ثبت‌شده در دفتر انبار از ابتدا.</p>
+          <div class="report-btn-row"><button class="primary-btn" onclick="printReport('all')">PDF</button><button class="ghost-btn" onclick="exportExcel('all')">Excel</button></div>
+        </div>
+        <div class="report-opt">
+          <div class="ic">🔖</div>
+          <h4>گزارش یک Batch</h4>
+          <p>شماره Batch را وارد کنید تا فقط پارت‌های آن گزارش شود.</p>
+          <input type="text" id="report-batch-input" class="mono" placeholder="Batch No">
+          <div class="report-btn-row"><button class="primary-btn" onclick="printReport('batch')">PDF</button><button class="ghost-btn" onclick="exportExcel('batch')">Excel</button></div>
+        </div>
+      </div>
+      <div class="card" style="margin-top:18px;">
+        <h3>خروجی به فرمت مشابه فایل اصلی</h3>
+        <p class="card-desc">خروجی اکسل با چیدمان گروه‌بندی‌شدهٔ پارت‌ها در هر ردیف، دقیقاً شبیه فایل اکسل اولیهٔ شما.</p>
+        <button class="ghost-btn" onclick="exportOriginalFormat()">دانلود اکسل به فرمت اصلی</button>
+      </div>
+    </section>
+
+    <!-- ================= PRODUCTS (merged with batch registry) ================= -->
+    <section class="page" id="page-products">
+      <h1 class="page-title">مدیریت محصولات</h1>
+      <p class="page-sub">هر محصول همراه با Batch No، GTIN، LOT و تعداد کل گمرکی خودش ثبت می‌شود. این لیست منبع اصلی پرشدن خودکار فرم ورودی است.</p>
+
+      <div class="card">
+        <h3>افزودن محصول / Batch جدید</h3>
+        <div class="form-grid">
+          <div class="field"><label>Batch No <span class="req">*</span></label><input type="text" id="p-batch" class="mono" placeholder="مثلاً 63580"></div>
+          <div class="field"><label>GTIN <span class="req">*</span></label><input type="text" id="p-gtin" class="mono" maxlength="13" placeholder="۱۳ رقم"></div>
+          <div class="field"><label>LOT <span class="req">*</span></label><input type="text" id="p-lot" class="mono" placeholder="LOT"></div>
+          <div class="field" style="grid-column:span 2;"><label>Product Name <span class="req">*</span></label><input type="text" id="p-name" placeholder="نام محصول"></div>
+          <div class="field"><label>تعداد کل گمرکی</label><input type="number" id="p-customs-total" class="mono" min="0" step="1" placeholder="مثلاً 3000"></div>
+        </div>
+        <div class="form-actions"><button class="primary-btn" onclick="addProduct()">افزودن محصول</button></div>
+      </div>
+
+      <div class="card">
+        <h3>ورود گروهی از فایل اکسل</h3>
+        <p class="card-desc">ستون‌های فایل: Batch No — GTIN — LOT — Product Name — Customs Total</p>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+          <button class="ghost-btn" onclick="downloadProductTemplate()">دانلود قالب اکسل</button>
+          <input type="file" id="prod-import-file" accept=".xlsx,.xls,.csv" style="flex:1;min-width:220px;">
+          <button class="primary-btn" onclick="importProductsExcel()">وارد کردن از فایل</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>لیست محصولات (<span id="prod-count">0</span>)</h3>
+        <div class="filters-row">
+          <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;"><input type="checkbox" id="prod-select-all" onchange="toggleAllProducts(this.checked)"> انتخاب همه</label>
+          <button class="small-btn danger" onclick="removeSelectedProducts()">حذف انتخاب‌شده‌ها</button>
+          <button class="danger-btn" onclick="removeAllProducts()">حذف کامل لیست</button>
+          <button class="primary-btn" onclick="saveAllProductChanges()">💾 ذخیره همه تغییرات</button>
+        </div>
+        <div class="table-wrap">
+          <table class="data-table" style="min-width:800px;">
+            <thead><tr><th></th><th>Batch No</th><th>GTIN</th><th>LOT</th><th>محصول</th><th>تعداد کل گمرکی</th><th>حذف</th></tr></thead>
+            <tbody id="prod-list"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= ADMIN ================= -->
+    <section class="page" id="page-admin">
+      <h1 class="page-title">مدیریت کلی</h1>
+      <p class="page-sub">این بخش با رمز عبور محافظت می‌شود.</p>
+
+      <div class="card" id="admin-lock-card">
+        <div class="lock-box">
+          <h3>ورود به پنل مدیریت</h3>
+          <input type="password" id="admin-password" class="mono" placeholder="رمز عبور">
+          <button class="primary-btn" onclick="tryAdminUnlock()" style="width:100%;">ورود</button>
+        </div>
+      </div>
+
+      <div id="admin-panel" style="display:none;">
+        <div class="card">
+          <h3>عنوان و لوگو برنامه</h3>
+          <div class="settings-row">
+            <div class="field"><label>عنوان برنامه</label><input type="text" id="set-title" placeholder="دفتر ورود کالا | بیله‌ندا"></div>
+            <div class="field"><label>زیرعنوان</label><input type="text" id="set-subtitle" placeholder="انبار بیله‌ندا"></div>
+          </div>
+          <div class="settings-row">
+            <div class="logo-preview" id="logo-preview">Bi</div>
+            <div class="field" style="flex:2;"><label>آپلود لوگو (تصویر)</label><input type="file" id="logo-file" accept="image/*"></div>
+            <button class="ghost-btn" onclick="resetLogo()">بازگشت به لوگوی پیش‌فرض</button>
+          </div>
+          <button class="primary-btn" onclick="saveSettings()">ذخیره تنظیمات</button>
+        </div>
+
+        <div class="card">
+          <h3>پشتیبان‌گیری و بازیابی</h3>
+          <p class="card-desc">یک نسخهٔ کامل از تمام رکوردها، محصولات و تنظیمات بگیرید یا بازیابی کنید.</p>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+            <button class="ghost-btn" onclick="downloadBackup()">دانلود پشتیبان کامل (JSON)</button>
+            <input type="file" id="restore-file" accept=".json">
+            <button class="primary-btn" onclick="restoreBackup()">بازیابی از فایل</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>ذخیرهٔ فایل برنامه</h3>
+          <p class="card-desc">یک نسخهٔ HTML از خودِ این ابزار دانلود کنید تا آفلاین نگه دارید یا برای دیگران بفرستید.</p>
+          <button class="ghost-btn" onclick="downloadAppHtml()">دانلود فایل HTML برنامه</button>
+        </div>
+
+        <div class="card danger-zone">
+          <h3>منطقهٔ خطر</h3>
+          <p class="card-desc">این عملیات‌ها برگشت‌ناپذیرند — پیش از استفاده حتماً پشتیبان بگیرید.</p>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;">
+            <button class="danger-btn" onclick="clearAllEntries()">پاک‌کردن همهٔ رکوردهای ورودی</button>
+            <button class="danger-btn" onclick="factoryReset()">بازنشانی کامل به حالت اولیه</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<div id="toast"></div>
+<div id="printArea"></div>
+<script id="embedded-data-snapshot" type="application/json">{}</script>
+
+<script>
+/* ============================================================
+   STATE
+   PRODUCTS is the single source of truth: each row =
+   { batchNo, gtin, lot, productName, customsTotal }
+============================================================ */
+let PRODUCTS = [];
+let ENTRIES = [];
+let SETTINGS = { title: 'دفتر ورود کالا | بیله‌ندا', subtitle: 'انبار بیله‌ندا', logoDataUrl: '' };
+let editingId = null;
+let adminUnlocked = false;
+const ADMIN_PASSWORD = 'Alireza3232';
+
+const DEFAULT_PRODUCTS = [
+ {"batchNo":"63580","gtin":"5902169063580","lot":"247725","productName":"V-MODELIST Anti-Wrinkle Cream - Night Skin Reconstruction Rebuilder, 50 ml","customsTotal":0},
+ {"batchNo":"63566","gtin":"5902169063566","lot":"207466","productName":"V-MODELIST Lifting Cream - Smoothing Stimulator 60+ Day, 50 ml","customsTotal":0},
+ {"batchNo":"63559","gtin":"5902169063559","lot":"207416","productName":"V-MODELIST Lifting Cream - Firming Activator 50+ Day, 50 ml","customsTotal":0},
+ {"batchNo":"61555","gtin":"5902169061555","lot":"6195","productName":"RECHARGE boost the energy protective mist SPF 50, 75 ml","customsTotal":0},
+ {"batchNo":"61531","gtin":"5902169061531","lot":"0101","productName":"RECHARGE boost the energy Hydrating and illuminating toning mist, 100 ml","customsTotal":0},
+ {"batchNo":"61524","gtin":"5902169061524","lot":"0112","productName":"RECHARGE boost the energy Moisturizing and illuminating face serum, 30 ml","customsTotal":0},
+ {"batchNo":"61517","gtin":"5902169061517","lot":"0101","productName":"RECHARGE boost the energy 4-in-1 moisturizing and brightening face gel-cream, 50 ml","customsTotal":0},
+ {"batchNo":"61340","gtin":"5902169061340","lot":"201756","productName":"Exosomes of youth Lifting eye cream to reduce wrinkles, dark circles and bags under the eyes, 15 ml","customsTotal":0},
+ {"batchNo":"61333","gtin":"5902169061333","lot":"249605","productName":"Exosomes of youth Serum - multi repair concentrate for night, reducing wrinkles and discoloration, 30 ml","customsTotal":0},
+ {"batchNo":"61302","gtin":"5902169061302","lot":"201276","productName":"Exosomes of youth Anti-wrinkle lifting cream, brightens discoloration and spots 60+, day/night, 50 ml.","customsTotal":0},
+ {"batchNo":"61296","gtin":"5902169061296","lot":"245035","productName":"Exosomes OF YOUTH Anti-wrinkle firming cream, brightening hyperpigmentation 50+, day/night, 50 ml.","customsTotal":0},
+ {"batchNo":"54441","gtin":"5902169054441","lot":"241005","productName":"CALCIUM + Q10 Concentrated eye and lip contour tightening cream, anti-wrinkle, 15 ml","customsTotal":0},
+ {"batchNo":"54434","gtin":"5902169054434","lot":"256934","productName":"CALCIUM + Q10 Ultra rich restorative cream - anti-wrinkle concentrate for night, 50 ml.","customsTotal":0},
+ {"batchNo":"53093","gtin":"5902169053093","lot":"0111","productName":"SKIN CLINIC PROFESSIONAL SIGNAL PEPTIDES stimulating and rejuvenating serum, 30 ml","customsTotal":0},
+ {"batchNo":"51778","gtin":"5902169051778","lot":"0101","productName":"FIRMING PEPTIDES 2in1 Firming and brightening anti-wrinkle cream + peptide serum under eyes and eyelids, 15 ml","customsTotal":0},
+ {"batchNo":"51730","gtin":"5902169051730","lot":"201946","productName":"FIRMING PEPTIDES Firming and repairing anti-wrinkle cream 60+ day/night 50 ml","customsTotal":0},
+ {"batchNo":"51716","gtin":"5902169051716","lot":"249665","productName":"FIRMING PEPTIDES Firming and moisturizing anti-wrinkle cream 40+ day/night 50 ml","customsTotal":0},
+ {"batchNo":"51426","gtin":"5902169051426","lot":"222255","productName":"BEAUTY MOLECULES Molecular niacinamide face wash gel, 195 g","customsTotal":0},
+ {"batchNo":"51341","gtin":"5902169051341","lot":"211745","productName":"BEAUTY MOLECULES Molekularne niacynamidowe serum shot, 30 g","customsTotal":0},
+ {"batchNo":"50030","gtin":"5902169050030","lot":"201306","productName":"SUPER TRIO RETINOL + VIT C + COLLAGEN Actively revitalizing anti-wrinkle night serum, 30 ml","customsTotal":0},
+ {"batchNo":"50009","gtin":"5902169050009","lot":"209495","productName":"SUPER TRIO RETINOL + VIT C + COLLAGEN Strongly firming anti-wrinkle cream 50+, day / night, 50 ml","customsTotal":0},
+ {"batchNo":"49805","gtin":"5902169049805","lot":"0109","productName":"SKIN CLINIC PROFESSIONAL HYALURONIC ACID moisturizing and soothing serum, 30ml","customsTotal":0},
+ {"batchNo":"49799","gtin":"5902169049799","lot":"207346","productName":"SKIN CLINIC PROFESSIONAL NIACYNAMID normalizing and smoothing serum, 30 ml","customsTotal":0},
+ {"batchNo":"49775","gtin":"5902169049775","lot":"0111","productName":"SKIN CLINIC PROFESSIONAL VITAMIN C brightening and nourishing serum, 30 ml","customsTotal":0},
+ {"batchNo":"49317","gtin":"5902169049317","lot":"246145","productName":"WATER BALANCE Intensely moisturizing eye cream, 15ml","customsTotal":0},
+ {"batchNo":"49287","gtin":"5902169049287","lot":"206115","productName":"WATER BALANCE Intensely moisturizing face serum-booster, 30g","customsTotal":0},
+ {"batchNo":"48365","gtin":"5902169048365","lot":"259544","productName":"BODY COCTAIL Wygładzający balsam do ciała BRZOSKWINIA + KOMBUCHA, 400 ml","customsTotal":0},
+ {"batchNo":"48099","gtin":"5902169048099","lot":"244505","productName":"BLUE MATCHA Blue Cloud Cream - Cream - Moisture Foam Balancing, 50 ml","customsTotal":0},
+ {"batchNo":"46422","gtin":"5902169046422","lot":"248805","productName":"HYDRA CARE Moisturizing face cream Coconut & Aloe - combination and oily skin, 50 ml","customsTotal":0},
+ {"batchNo":"46415","gtin":"5902169046415","lot":"240494","productName":"HYDRA CARE Moisturizing face cream Coconut & Aloe - dry and dehydrated skin, 50 ml","customsTotal":0},
+ {"batchNo":"44848","gtin":"5902169044848","lot":"239575","productName":"GREEN TEA hydrolate 3 in 1 200 ml","customsTotal":0},
+ {"batchNo":"44831","gtin":"5902169044831","lot":"248005","productName":"GREEN TEA micellar gel for face cleansing 200 ml","customsTotal":0},
+ {"batchNo":"44824","gtin":"5902169044824","lot":"246185","productName":"GREEN TEA cleansing micellar liquid 3 in 1 500 ml","customsTotal":0},
+ {"batchNo":"44817","gtin":"5902169044817","lot":"241585","productName":"GREEN TEA Face serum, 30 ml","customsTotal":0},
+ {"batchNo":"44794","gtin":"5902169044794","lot":"247645","productName":"GREEN TEA Matifying face cream day, 50 ml","customsTotal":0},
+ {"batchNo":"37819","gtin":"5902169037819","lot":"246075","productName":"VEGAN MUESLI matting cream oat + wheat + rice milk 50 ml","customsTotal":0},
+ {"batchNo":"37802","gtin":"5902169037802","lot":"248085","productName":"VEGAN MUESLI moisturizing cream oats + wheat + coconut milk 50 ml","customsTotal":0},
+ {"batchNo":"35013","gtin":"5902169035013","lot":"224315","productName":"Collagen eye cream 30 ml 1.0 FL.OZ","customsTotal":0},
+ {"batchNo":"27384","gtin":"5902169027384","lot":"266684","productName":"CUCUMBER AND LIME toner 200ml","customsTotal":0},
+ {"batchNo":"25472","gtin":"5902169025472","lot":"239465","productName":"NEURO HIALURON moisturizing face cream - concentrate 40+ day/night 50 ml","customsTotal":0},
+ {"batchNo":"22396","gtin":"5902169022396","lot":"247675","productName":"CUCUMBER AND LIME gel+scrub+serum 3in1 150g","customsTotal":0},
+ {"batchNo":"20392","gtin":"5902169020392","lot":"0112","productName":"CLEAN SKIN EXPERT 3 in 1 Soothing Micellar Water, 400 ml","customsTotal":0},
+ {"batchNo":"20385","gtin":"5902169020385","lot":"0212","productName":"CLEAN SKIN EXPERT 3 in 1 Moisturizing Micellar Water, 400 ml","customsTotal":0},
+ {"batchNo":"20354","gtin":"5902169020354","lot":"234305","productName":"CLEAN SKIN EXPERT Specialized Eye Make-Up Remover For Eyelash Extensions 150 ml","customsTotal":0},
+ {"batchNo":"18245","gtin":"5902169018245","lot":"247785","productName":"SKIN CLINIC PROFESSIONAL face tonic with Mandelic acid + Lactobionic acid 200 ml","customsTotal":0},
+ {"batchNo":"18238","gtin":"5902169018238","lot":"248795","productName":"SKIN CLINIC PROFESSIONAL face tonic with lactic&hialuronic acid 200 ml","customsTotal":0},
+ {"batchNo":"18221","gtin":"5902169018221","lot":"245625","productName":"SKIN CLINIC PROFESSIONAL face tonic with hialuronic acid 200 ml","customsTotal":0}
+];
+
+/* ============================================================
+   STORAGE ABSTRACTION
+   Tier 1: window.storage — available inside Claude.ai (artifacts).
+   Tier 2: localStorage — available once this file is hosted/installed
+           as a real standalone PWA outside Claude (its own origin).
+   Tier 3: embedded snapshot only, kept in memory for this session —
+           used when neither of the above is available (e.g. a raw
+           file opened directly with no web server behind it).
+============================================================ */
+const hasStorage = (typeof window !== 'undefined' && !!window.storage);
+function checkLocalStorage(){
+  try{ const k='__wms_test__'; localStorage.setItem(k,'1'); localStorage.removeItem(k); return true; }
+  catch(e){ return false; }
+}
+const LS_OK = (typeof localStorage !== 'undefined') && checkLocalStorage();
+const LS_PREFIX = 'wms_';
+
+async function storageGet(key){
+  if(hasStorage){
+    try{ const r = await window.storage.get(key, false); return r ? r.value : null; }catch(e){ return null; }
+  }
+  if(LS_OK){
+    try{ return localStorage.getItem(LS_PREFIX+key); }catch(e){ return null; }
+  }
+  return null;
+}
+async function storageSet(key, value){
+  if(hasStorage){
+    try{ return await window.storage.set(key, value, false); }catch(e){ return null; }
+  }
+  if(LS_OK){
+    try{ localStorage.setItem(LS_PREFIX+key, value); return true; }catch(e){ return null; }
+  }
+  return null;
+}
+
+/* ============================================================
+   PERSISTENCE
+============================================================ */
+async function loadState(){
+  let embedded = null;
+  try{
+    const tag = document.getElementById('embedded-data-snapshot');
+    if(tag && tag.textContent && tag.textContent.trim() && tag.textContent.trim() !== '{}'){
+      embedded = JSON.parse(tag.textContent);
+    }
+  }catch(e){ embedded = null; }
+
+  if(!hasStorage && !LS_OK){
+    if(embedded){
+      if(embedded.products && embedded.products.length) PRODUCTS = embedded.products;
+      if(embedded.entries) ENTRIES = embedded.entries;
+      if(embedded.settings) SETTINGS = Object.assign(SETTINGS, embedded.settings);
+    }
+    if(!PRODUCTS || PRODUCTS.length===0) PRODUCTS = DEFAULT_PRODUCTS.slice();
+    if(!ENTRIES) ENTRIES = [];
+    applySettingsToUI();
+    return;
+  }
+
+  try{
+    const pbRaw = await storageGet('product-batches');
+    if(pbRaw){
+      PRODUCTS = JSON.parse(pbRaw);
+    } else if(embedded && embedded.products && embedded.products.length){
+      PRODUCTS = embedded.products;
+      await storageSet('product-batches', JSON.stringify(PRODUCTS));
+    } else {
+      let legacyBatches = [], legacyProducts = [];
+      try{ const b = await storageGet('batches'); if(b) legacyBatches = JSON.parse(b); }catch(e){}
+      try{ const p = await storageGet('products'); if(p) legacyProducts = JSON.parse(p); }catch(e){}
+      if(legacyBatches.length || legacyProducts.length){
+        const map = {};
+        legacyBatches.forEach(b=>{ map[String(b.batchNo)] = {batchNo:b.batchNo, gtin:b.gtin||'', lot:b.lot||'', productName:b.productName||'', customsTotal:Number(b.customsTotal)||0}; });
+        legacyProducts.forEach(p=>{
+          const already = Object.values(map).some(m=>m.productName===p.name);
+          if(!already) map['np_'+p.name] = {batchNo:'', gtin:p.gtin||'', lot:'', productName:p.name, customsTotal:0};
+        });
+        PRODUCTS = Object.values(map);
+      } else {
+        PRODUCTS = DEFAULT_PRODUCTS.slice();
+      }
+      await storageSet('product-batches', JSON.stringify(PRODUCTS));
+    }
+  }catch(e){ PRODUCTS = (embedded&&embedded.products) || DEFAULT_PRODUCTS.slice(); }
+
+  try{
+    const eRaw = await storageGet('entries');
+    if(eRaw){ ENTRIES = JSON.parse(eRaw); }
+    else if(embedded && embedded.entries){ ENTRIES = embedded.entries; await storageSet('entries', JSON.stringify(ENTRIES)); }
+    else { ENTRIES = []; }
+  }catch(e){ ENTRIES = (embedded&&embedded.entries) || []; }
+
+  try{
+    const sRaw = await storageGet('settings');
+    if(sRaw){ SETTINGS = Object.assign(SETTINGS, JSON.parse(sRaw)); }
+    else if(embedded && embedded.settings){ SETTINGS = Object.assign(SETTINGS, embedded.settings); await storageSet('settings', JSON.stringify(SETTINGS)); }
+  }catch(e){ /* keep defaults */ }
+
+  applySettingsToUI();
+}
+
+async function saveProducts(){
+  if(!hasStorage && !LS_OK) return;
+  try{
+    const res = await storageSet('product-batches', JSON.stringify(PRODUCTS));
+    if(!res) showToast('ذخیره‌سازی محصولات انجام نشد، دوباره تلاش کنید', true);
+  }catch(e){ showToast('خطا در ذخیره‌سازی لیست محصولات', true); }
+}
+async function saveEntries(){
+  if(!hasStorage && !LS_OK) return;
+  try{
+    const res = await storageSet('entries', JSON.stringify(ENTRIES));
+    if(!res) showToast('ذخیره‌سازی رکوردها انجام نشد، دوباره تلاش کنید', true);
+  }catch(e){ showToast('خطا در ذخیره‌سازی اطلاعات', true); }
+}
+async function saveSettingsToStorage(){
+  if(!hasStorage && !LS_OK) return;
+  try{ await storageSet('settings', JSON.stringify(SETTINGS)); }
+  catch(e){ showToast('خطا در ذخیره‌سازی تنظیمات', true); }
+}
+
+function applySettingsToUI(){
+  document.getElementById('doc-title').textContent = SETTINGS.title;
+  document.title = SETTINGS.title;
+  document.getElementById('brand-title-text').textContent = SETTINGS.title.split('|')[0].trim() || SETTINGS.title;
+  document.querySelector('.brand-text span').textContent = SETTINGS.subtitle || '';
+  const mark = document.getElementById('brand-mark');
+  if(SETTINGS.logoDataUrl){ mark.innerHTML = '<img src="'+SETTINGS.logoDataUrl+'">'; }
+  else { mark.textContent = 'Bi'; }
+}
+
+/* ============================================================
+   JALALI DATE
+============================================================ */
+function gregorianToJalali(gy, gm, gd){
+  const g_d_m = [0,31,59,90,120,151,181,212,243,273,304,334];
+  let gy2 = (gm > 2) ? (gy + 1) : gy;
+  let days = 355666 + (365*gy) + Math.floor((gy2+3)/4) - Math.floor((gy2+99)/100) + Math.floor((gy2+399)/400) + gd + g_d_m[gm-1];
+  let jy = -1595 + (33 * Math.floor(days/12053));
+  days %= 12053;
+  jy += 4 * Math.floor(days/1461);
+  days %= 1461;
+  if(days > 365){ jy += Math.floor((days-1)/365); days = (days-1)%365; }
+  let jm, jd;
+  if(days < 186){ jm = 1 + Math.floor(days/31); jd = 1 + (days%31); }
+  else{ jm = 7 + Math.floor((days-186)/30); jd = 1 + ((days-186)%30); }
+  return [jy, jm, jd];
+}
+function toJalaliStr(dateObj){ const [jy,jm,jd] = gregorianToJalali(dateObj.getFullYear(), dateObj.getMonth()+1, dateObj.getDate()); return jy+'/'+String(jm).padStart(2,'0')+'/'+String(jd).padStart(2,'0'); }
+function isoDateKey(dateObj){ return dateObj.getFullYear()+'-'+String(dateObj.getMonth()+1).padStart(2,'0')+'-'+String(dateObj.getDate()).padStart(2,'0'); }
+
+/* ============================================================
+   NAVIGATION
+============================================================ */
+function showPage(name){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('page-'+name).classList.add('active');
+  document.querySelector('.nav-btn[data-page="'+name+'"]').classList.add('active');
+  if(name==='search') runSearch();
+  if(name==='records') renderRecords();
+  if(name==='dashboard') renderDashboard();
+  if(name==='products') renderProducts();
+  if(name==='admin') renderAdmin();
+}
+function showToast(msg, isError){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = isError ? 'show error' : 'show';
+  setTimeout(()=>{ t.className=''; }, 2800);
+}
+function escapeHtml(s){ return (s+'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+/* ============================================================
+   PRODUCT NAME DATALIST (built from PRODUCTS)
+============================================================ */
+function populateProductDatalist(){
+  const dl = document.getElementById('product-names-list');
+  const uniqueNames = [...new Set(PRODUCTS.map(p=>p.productName).filter(Boolean))];
+  dl.innerHTML = uniqueNames.map(n=>`<option value="${escapeHtml(n)}">`).join('');
+}
+
+/* ============================================================
+   ENTRY FORM
+============================================================ */
+function onGtinInput(){
+  const v = document.getElementById('f-gtin').value.trim();
+  const errEl = document.getElementById('err-gtin');
+  const inputEl = document.getElementById('f-gtin');
+  if(v.length===0){ errEl.classList.remove('show'); inputEl.classList.remove('invalid'); return; }
+  const valid = /^\d{13}$/.test(v);
+  errEl.classList.toggle('show', !valid);
+  inputEl.classList.toggle('invalid', !valid);
+}
+
+function findBatchRegistry(batchNo){
+  return PRODUCTS.find(b => String(b.batchNo).trim().toLowerCase() === String(batchNo).trim().toLowerCase() && String(b.batchNo).trim()!=='');
+}
+
+function onBatchInput(){
+  if(editingId) return; // don't override while editing an existing record
+  const batch = document.getElementById('f-batch').value.trim();
+  const warnEl = document.getElementById('batch-warning');
+  const noteEl = document.getElementById('batch-status-note');
+  const gtinEl = document.getElementById('f-gtin');
+  const lotEl = document.getElementById('f-lot');
+  const prodEl = document.getElementById('f-product');
+  const ctEl = document.getElementById('f-customs-total');
+
+  if(!batch){
+    noteEl.classList.remove('show','matched','newbatch');
+    warnEl.classList.remove('show');
+    [gtinEl, lotEl, prodEl, ctEl].forEach(el=>el.disabled=false);
+    return;
+  }
+
+  const reg = findBatchRegistry(batch);
+  const priorParts = ENTRIES.filter(e => String(e.batchNo).trim() === batch);
+
+  if(reg){
+    gtinEl.value = reg.gtin; lotEl.value = reg.lot; prodEl.value = reg.productName; ctEl.value = reg.customsTotal || '';
+    [gtinEl, lotEl, prodEl, ctEl].forEach(el=>el.disabled=true);
+    onGtinInput();
+    document.getElementById('err-product').classList.remove('show');
+    noteEl.className = 'status-note show matched';
+    updateBatchLiveInfo();
+  } else {
+    [gtinEl, lotEl, prodEl, ctEl].forEach(el=>el.disabled=false);
+    noteEl.className = 'status-note show newbatch';
+    noteEl.innerHTML = '🆕 این Batch جدید است — GTIN، LOT، محصول و تعداد کل گمرکی را یک‌بار وارد کنید تا در دفعات بعد خودکار پر شود.';
+  }
+
+  if(priorParts.length>0){
+    const parts = priorParts.map(m=>m.partNo).sort((a,b)=>a-b).join('، ');
+    warnEl.textContent = `⚠ این Batch قبلاً ${priorParts.length} پارت ثبت شده (پارت‌های: ${parts}).`;
+    warnEl.classList.add('show');
+    const partField = document.getElementById('f-part');
+    if(!partField.value) partField.placeholder = 'پیشنهاد: ' + (Math.max(...priorParts.map(m=>Number(m.partNo)||0))+1);
+  } else {
+    warnEl.classList.remove('show');
+    document.getElementById('f-part').placeholder = 'خودکار (پارت ۱)';
+  }
+}
+
+function onQtyInput(){ if(!editingId) updateBatchLiveInfo(); }
+
+function updateBatchLiveInfo(){
+  const batch = document.getElementById('f-batch').value.trim();
+  const noteEl = document.getElementById('batch-status-note');
+  if(!batch) return;
+  const reg = findBatchRegistry(batch);
+  if(!reg){ return; }
+  const received = ENTRIES.filter(e=>String(e.batchNo).trim()===batch).reduce((s,e)=>s+Number(e.quantity||0),0);
+  const currentQty = Number(document.getElementById('f-qty').value)||0;
+  const receivedWithCurrent = received + currentQty;
+  const customsTotal = Number(reg.customsTotal)||0;
+  const diff = customsTotal - receivedWithCurrent;
+  let diffHtml = '';
+  if(customsTotal>0){
+    diffHtml = diff>0
+      ? `<br>📊 طبق گمرک: <b>${customsTotal}</b> | دریافت‌شده (با این پارت): <b>${receivedWithCurrent}</b> | <span style="color:var(--rust)">مانده تا تکمیل: <b>${diff}</b></span>`
+      : `<br>📊 طبق گمرک: <b>${customsTotal}</b> | دریافت‌شده (با این پارت): <b>${receivedWithCurrent}</b> | <span style="color:var(--sage)">${diff===0?'دقیقاً تکمیل شد ✓':'مازاد دریافتی: '+Math.abs(diff)}</span>`;
+  }
+  noteEl.innerHTML = `✓ Batch شناسایی شد — GTIN، LOT و محصول از فهرست محصولات پر شد.${diffHtml}`;
+}
+
+function clearForm(){
+  ['f-batch','f-gtin','f-lot','f-product','f-part','f-qty','f-carton','f-kbrand','f-kcustoms','f-waste','f-expiry','f-customs-total'].forEach(id=>document.getElementById(id).value='');
+  ['f-gtin','f-lot','f-product','f-customs-total'].forEach(id=>document.getElementById(id).disabled=false);
+  document.querySelectorAll('.err').forEach(e=>e.classList.remove('show'));
+  document.querySelectorAll('.field input').forEach(e=>e.classList.remove('invalid'));
+  document.getElementById('batch-warning').classList.remove('show');
+  document.getElementById('batch-status-note').classList.remove('show','matched','newbatch');
+  editingId = null;
+  document.getElementById('form-mode-title').textContent = 'ثبت پارت جدید';
+  document.getElementById('cancel-edit-btn').style.display = 'none';
+}
+function cancelEdit(){ clearForm(); }
+
+function validateForm(){
+  let ok = true;
+  const batch = document.getElementById('f-batch').value.trim();
+  const gtin = document.getElementById('f-gtin').value.trim();
+  const lot = document.getElementById('f-lot').value.trim();
+  const product = document.getElementById('f-product').value.trim();
+  const qty = document.getElementById('f-qty').value;
+  const expiry = document.getElementById('f-expiry').value.trim();
+
+  toggleErr('err-batch', !batch); if(!batch) ok=false;
+  toggleErr('err-lot', !lot); if(!lot) ok=false;
+  toggleErr('err-product', !product); if(!product) ok=false;
+
+  const gtinValid = /^\d{13}$/.test(gtin);
+  toggleErr('err-gtin', !gtinValid);
+  document.getElementById('f-gtin').classList.toggle('invalid', !gtinValid);
+  if(!gtinValid) ok=false;
+
+  const qtyValid = qty!=='' && Number(qty)>=0 && Number.isFinite(Number(qty));
+  toggleErr('err-qty', !qtyValid); if(!qtyValid) ok=false;
+
+  const expiryValid = /^\d{4}\/(0?[1-9]|1[0-2])$/.test(expiry);
+  toggleErr('err-expiry', !expiryValid);
+  document.getElementById('f-expiry').classList.toggle('invalid', !expiryValid);
+  if(!expiryValid) ok=false;
+
+  return ok;
+}
+function toggleErr(id, show){ document.getElementById(id).classList.toggle('show', !!show); }
+
+async function submitEntry(){
+  if(!validateForm()){ showToast('لطفاً خطاهای فرم را برطرف کنید', true); return; }
+
+  const batch = document.getElementById('f-batch').value.trim();
+  const gtin = document.getElementById('f-gtin').value.trim();
+  const lot = document.getElementById('f-lot').value.trim();
+  const productName = document.getElementById('f-product').value.trim();
+  const customsTotal = Number(document.getElementById('f-customs-total').value)||0;
+
+  let partNo = Number(document.getElementById('f-part').value);
+  if(!partNo){
+    const matches = ENTRIES.filter(e=>String(e.batchNo).trim()===batch);
+    partNo = matches.length ? Math.max(...matches.map(m=>Number(m.partNo)||0))+1 : 1;
+  }
+
+  const entry = {
+    id: editingId || ('e_'+Date.now()+'_'+Math.random().toString(36).slice(2,7)),
+    batchNo: batch, gtin, lot, productName,
+    expiryDate: document.getElementById('f-expiry').value.trim(),
+    partNo: partNo,
+    quantity: Number(document.getElementById('f-qty').value)||0,
+    carton: Number(document.getElementById('f-carton').value)||0,
+    kasriBrand: Number(document.getElementById('f-kbrand').value)||0,
+    kasriCustoms: Number(document.getElementById('f-kcustoms').value)||0,
+    waste: Number(document.getElementById('f-waste').value)||0,
+    ts: editingId ? (ENTRIES.find(e=>e.id===editingId)||{}).ts || new Date().toISOString() : new Date().toISOString()
+  };
+
+  if(editingId){
+    const idx = ENTRIES.findIndex(e=>e.id===editingId);
+    ENTRIES[idx] = entry;
+    showToast('رکورد ویرایش شد ✓');
+  } else {
+    ENTRIES.push(entry);
+    if(!findBatchRegistry(batch)){
+      PRODUCTS.push({batchNo: batch, gtin, lot, productName, customsTotal});
+      await saveProducts();
+      populateProductDatalist();
+    }
+    showToast('رکورد با موفقیت ثبت شد ✓');
+  }
+  await saveEntries();
+  clearForm();
+}
+
+function loadEntryForEdit(id){
+  const e = ENTRIES.find(x=>x.id===id);
+  if(!e) return;
+  editingId = id;
+  ['f-gtin','f-lot','f-product','f-customs-total'].forEach(fid=>document.getElementById(fid).disabled=false);
+  document.getElementById('f-batch').value = e.batchNo;
+  document.getElementById('f-gtin').value = e.gtin;
+  document.getElementById('f-lot').value = e.lot;
+  document.getElementById('f-product').value = e.productName;
+  const reg = findBatchRegistry(e.batchNo);
+  document.getElementById('f-customs-total').value = reg ? (reg.customsTotal||'') : '';
+  document.getElementById('f-expiry').value = e.expiryDate||'';
+  document.getElementById('f-part').value = e.partNo;
+  document.getElementById('f-qty').value = e.quantity;
+  document.getElementById('f-carton').value = e.carton;
+  document.getElementById('f-kbrand').value = e.kasriBrand;
+  document.getElementById('f-kcustoms').value = e.kasriCustoms;
+  document.getElementById('f-waste').value = e.waste;
+  document.getElementById('batch-status-note').classList.remove('show','matched','newbatch');
+  document.getElementById('batch-warning').classList.remove('show');
+  document.getElementById('form-mode-title').textContent = 'ویرایش پارت — Batch ' + e.batchNo;
+  document.getElementById('cancel-edit-btn').style.display = 'inline-block';
+  showPage('entry');
+  window.scrollTo(0,0);
+}
+
+async function deleteEntry(id){
+  if(!confirm('این رکورد حذف شود؟')) return;
+  ENTRIES = ENTRIES.filter(e=>e.id!==id);
+  await saveEntries();
+  renderRecords();
+  showToast('رکورد حذف شد');
+}
+
+/* ============================================================
+   SEARCH
+============================================================ */
+function runSearch(){
+  const q = document.getElementById('search-input').value.trim().toLowerCase();
+  const box = document.getElementById('search-results');
+  if(!q){ box.innerHTML = '<div class="empty-state">شماره Batch یا GTIN را برای جستجو تایپ کنید.</div>'; return; }
+
+  const matchedKeys = new Set();
+  ENTRIES.forEach(e=>{
+    if(String(e.batchNo).toLowerCase().includes(q) || String(e.gtin).toLowerCase().includes(q)){
+      matchedKeys.add(e.batchNo+'||'+e.gtin);
+    }
+  });
+  PRODUCTS.forEach(b=>{
+    if((b.batchNo && String(b.batchNo).toLowerCase().includes(q)) || (b.gtin && String(b.gtin).toLowerCase().includes(q))){
+      matchedKeys.add(b.batchNo+'||'+b.gtin);
+    }
+  });
+
+  if(matchedKeys.size===0){ box.innerHTML = '<div class="empty-state">هیچ کالایی با این مشخصات پیدا نشد.</div>'; return; }
+
+  let html = '';
+  matchedKeys.forEach(key=>{
+    const [batchNo, gtin] = key.split('||');
+    const parts = ENTRIES.filter(e=>e.batchNo+'||'+e.gtin === key).sort((a,b)=>a.partNo-b.partNo);
+    const reg = findBatchRegistry(batchNo);
+    const name = (parts[0]&&parts[0].productName) || (reg&&reg.productName) || '—';
+    const sum = f => parts.reduce((s,p)=>s+(Number(p[f])||0),0);
+    const totalQty = sum('quantity');
+    const customsTotal = reg ? Number(reg.customsTotal)||0 : 0;
+    const diff = customsTotal - totalQty;
+
+    let customsBlock = '';
+    if(customsTotal>0){
+      customsBlock = `
+        <div class="agg-item ${diff>0?'diff-bad':'diff-ok'}"><div class="n">${customsTotal}</div><div class="l">کل گمرکی</div></div>
+        <div class="agg-item ${diff>0?'diff-bad':'diff-ok'}"><div class="n">${diff>0? diff : (diff<0? ('+'+Math.abs(diff)) : 0)}</div><div class="l">${diff>0?'کسری تا تکمیل':(diff<0?'مازاد':'تکمیل شده')}</div></div>
+      `;
+    }
+
+    html += `
+      <div class="result-card">
+        <div class="result-head">
+          <h4>${escapeHtml(name)}</h4>
+          <span class="badge ${diff>0?'warn':''}">${parts.length} پارت ثبت‌شده</span>
+        </div>
+        <div class="result-codes">
+          <span>Batch: <b>${escapeHtml(batchNo)}</b></span>
+          <span>GTIN: <b>${escapeHtml(gtin)}</b></span>
+          <span>LOTهای ثبت‌شده: <b>${[...new Set(parts.map(p=>p.lot))].join(', ')||(reg?reg.lot:'—')}</b></span>
+        </div>
+        <div class="agg-row">
+          <div class="agg-item"><div class="n">${totalQty}</div><div class="l">تعداد کل دریافتی</div></div>
+          <div class="agg-item"><div class="n">${sum('carton')}</div><div class="l">کارتن</div></div>
+          <div class="agg-item"><div class="n">${sum('kasriBrand')}</div><div class="l">کسری برند</div></div>
+          <div class="agg-item"><div class="n">${sum('waste')}</div><div class="l">ضایعات</div></div>
+          ${customsBlock}
+        </div>
+        <table class="part-table">
+          <thead><tr><th>پارت</th><th>LOT</th><th>انقضا</th><th>تعداد</th><th>کارتن</th><th>ک.برند</th><th>ک.گمرک</th><th>ضایعات</th><th>تاریخ ثبت</th></tr></thead>
+          <tbody>
+            ${parts.map(p=>`<tr><td>${p.partNo}</td><td class="mono">${escapeHtml(p.lot)}</td><td class="mono">${escapeHtml(p.expiryDate||'—')}</td><td>${p.quantity}</td><td>${p.carton}</td><td>${p.kasriBrand}</td><td>${p.kasriCustoms}</td><td>${p.waste}</td><td class="mono">${toJalaliStr(new Date(p.ts))}</td></tr>`).join('') || '<tr><td colspan="9" style="color:var(--ink-soft);">هنوز پارتی برای این Batch ثبت نشده</td></tr>'}
+          </tbody>
+        </table>
+      </div>`;
+  });
+  box.innerHTML = html;
+}
+
+/* ============================================================
+   RECORDS TABLE — inline bulk edit
+============================================================ */
+function renderRecords(){
+  const q = (document.getElementById('rec-filter').value||'').trim().toLowerCase();
+  const tbody = document.getElementById('records-tbody');
+  let list = ENTRIES.slice().sort((a,b)=> new Date(b.ts) - new Date(a.ts));
+  if(q){
+    list = list.filter(e =>
+      String(e.batchNo).toLowerCase().includes(q) ||
+      String(e.gtin).toLowerCase().includes(q) ||
+      String(e.productName).toLowerCase().includes(q)
+    );
+  }
+  if(list.length===0){ tbody.innerHTML = `<tr><td colspan="13" class="empty-state">رکوردی برای نمایش وجود ندارد.</td></tr>`; return; }
+
+  tbody.innerHTML = list.map(e=>`
+    <tr data-id="${e.id}">
+      <td class="mono">${toJalaliStr(new Date(e.ts))}</td>
+      <td><input class="mono f-batchNo" value="${escapeHtml(e.batchNo)}"></td>
+      <td><input class="mono f-gtin" maxlength="13" value="${escapeHtml(e.gtin)}"></td>
+      <td><input class="mono f-lot" value="${escapeHtml(e.lot)}"></td>
+      <td><input class="f-productName" list="product-names-list" value="${escapeHtml(e.productName)}"></td>
+      <td><input class="mono f-expiryDate" placeholder="YYYY/MM" value="${escapeHtml(e.expiryDate||'')}"></td>
+      <td><input type="number" class="mono f-partNo" value="${e.partNo}" style="width:50px"></td>
+      <td><input type="number" class="mono f-quantity" value="${e.quantity}" style="width:55px"></td>
+      <td><input type="number" class="mono f-carton" value="${e.carton}" style="width:50px"></td>
+      <td><input type="number" class="mono f-kasriBrand" value="${e.kasriBrand}" style="width:50px"></td>
+      <td><input type="number" class="mono f-kasriCustoms" value="${e.kasriCustoms}" style="width:50px"></td>
+      <td><input type="number" class="mono f-waste" value="${e.waste}" style="width:50px"></td>
+      <td><button class="small-btn danger" onclick="deleteEntry('${e.id}')">حذف</button></td>
+    </tr>
+  `).join('');
+}
+
+async function saveAllRecordChanges(){
+  const rows = document.querySelectorAll('#records-tbody tr[data-id]');
+  let saved = 0, skipped = 0;
+  rows.forEach(row=>{
+    const id = row.dataset.id;
+    const idx = ENTRIES.findIndex(e=>e.id===id);
+    if(idx===-1) return;
+    const gtinInput = row.querySelector('.f-gtin');
+    const qtyInput = row.querySelector('.f-quantity');
+    const gtin = gtinInput.value.trim();
+    const qty = qtyInput.value;
+    const gtinValid = /^\d{13}$/.test(gtin);
+    const qtyValid = qty!=='' && Number.isFinite(Number(qty)) && Number(qty)>=0;
+    gtinInput.classList.toggle('invalid', !gtinValid);
+    qtyInput.classList.toggle('invalid', !qtyValid);
+    if(!gtinValid || !qtyValid){ skipped++; return; }
+    ENTRIES[idx] = {
+      ...ENTRIES[idx],
+      batchNo: row.querySelector('.f-batchNo').value.trim(),
+      gtin: gtin,
+      lot: row.querySelector('.f-lot').value.trim(),
+      productName: row.querySelector('.f-productName').value.trim(),
+      expiryDate: row.querySelector('.f-expiryDate').value.trim(),
+      partNo: Number(row.querySelector('.f-partNo').value)||1,
+      quantity: Number(qty)||0,
+      carton: Number(row.querySelector('.f-carton').value)||0,
+      kasriBrand: Number(row.querySelector('.f-kasriBrand').value)||0,
+      kasriCustoms: Number(row.querySelector('.f-kasriCustoms').value)||0,
+      waste: Number(row.querySelector('.f-waste').value)||0
+    };
+    saved++;
+  });
+  await saveEntries();
+  if(skipped>0) showToast(`${saved} رکورد ذخیره شد — ${skipped} رکورد به‌دلیل خطا ذخیره نشد`, true);
+  else showToast(`${saved} رکورد با موفقیت ذخیره شد ✓`);
+}
+
+/* ============================================================
+   DASHBOARD
+============================================================ */
+function renderDashboard(){
+  const now = new Date();
+  document.getElementById('dash-date-sub').textContent = 'امروز: ' + toJalaliStr(now) + ' (' + isoDateKey(now) + ')';
+  const todayKey = isoDateKey(now);
+
+  const todayEntries = ENTRIES.filter(e=> isoDateKey(new Date(e.ts)) === todayKey);
+  const todayQty = todayEntries.reduce((s,e)=>s+Number(e.quantity||0),0);
+  const todayBatches = new Set(todayEntries.map(e=>e.batchNo)).size;
+  const totalBatches = new Set(ENTRIES.map(e=>e.batchNo)).size;
+  const totalQty = ENTRIES.reduce((s,e)=>s+Number(e.quantity||0),0);
+  const totalKasri = ENTRIES.reduce((s,e)=>s+Number(e.kasriBrand||0)+Number(e.kasriCustoms||0),0);
+  const todayKasri = todayEntries.reduce((s,e)=>s+Number(e.kasriBrand||0)+Number(e.kasriCustoms||0),0);
+  const totalWaste = ENTRIES.reduce((s,e)=>s+Number(e.waste||0),0);
+  const todayWaste = todayEntries.reduce((s,e)=>s+Number(e.waste||0),0);
+  const totalCarton = ENTRIES.reduce((s,e)=>s+Number(e.carton||0),0);
+  const todayCarton = todayEntries.reduce((s,e)=>s+Number(e.carton||0),0);
+  const remaining = totalQty - totalKasri - totalWaste;
+
+  const kpis = [
+    {label:'تعداد کالای امروز', value:todayQty, sub:totalQty+' کل تاکنون', color:'var(--primary)'},
+    {label:'Batchهای ثبت‌شده امروز', value:todayBatches, sub:totalBatches+' کل Batch', color:'var(--gold)'},
+    {label:'تعداد کل کارتن', value:totalCarton, sub:todayCarton+' امروز', color:'var(--primary-light)'},
+    {label:'کسری‌ها (برند+گمرک)', value:totalKasri, sub:todayKasri+' امروز', color:'var(--rust)'},
+    {label:'ضایعات', value:totalWaste, sub:todayWaste+' امروز', color:'var(--rust)'},
+    {label:'مانده انبار (خالص)', value:remaining, sub:'تعداد − کسری − ضایعات', color:'var(--sage)'}
+  ];
+  document.getElementById('kpi-grid').innerHTML = kpis.map(k=>`
+    <div class="kpi-card" style="--kc:${k.color}"><div class="label">${k.label}</div><div class="value">${k.value.toLocaleString('en-US')}</div><div class="sub">${k.sub}</div></div>
+  `).join('');
+
+  const days = [];
+  for(let i=13;i>=0;i--){ const d = new Date(); d.setDate(d.getDate()-i); days.push(d); }
+  const dayTotals = days.map(d=>{
+    const key = isoDateKey(d);
+    return ENTRIES.filter(e=>isoDateKey(new Date(e.ts))===key).reduce((s,e)=>s+Number(e.quantity||0),0);
+  });
+  const max = Math.max(...dayTotals, 1);
+  document.getElementById('chart-wrap').innerHTML = days.map((d,i)=>`
+    <div class="chart-bar-col"><div class="val">${dayTotals[i]||''}</div><div class="chart-bar" style="height:${Math.max((dayTotals[i]/max)*100,2)}%"></div><div class="lbl">${d.getDate()}/${d.getMonth()+1}</div></div>
+  `).join('');
+
+  const customsRows = PRODUCTS.filter(b=>Number(b.customsTotal)>0 && b.batchNo).map(b=>{
+    const received = ENTRIES.filter(e=>String(e.batchNo).trim()===String(b.batchNo).trim()).reduce((s,e)=>s+Number(e.quantity||0),0);
+    const diff = Number(b.customsTotal) - received;
+    return {...b, received, diff};
+  }).sort((a,b)=>b.diff-a.diff);
+
+  const ctable = document.getElementById('customs-table');
+  if(customsRows.length===0){
+    ctable.innerHTML = `<tr><td class="empty-state">برای مقایسه، ابتدا «تعداد کل گمرکی» را برای محصولات در بخش «مدیریت محصولات» وارد کنید.</td></tr>`;
+  } else {
+    ctable.innerHTML = `
+      <thead><tr><th>Batch</th><th>محصول</th><th>کل گمرکی</th><th>دریافت‌شده</th><th>وضعیت</th></tr></thead>
+      <tbody>
+      ${customsRows.map(r=>`
+        <tr>
+          <td class="mono">${escapeHtml(r.batchNo)}</td>
+          <td style="text-align:right">${escapeHtml(r.productName)}</td>
+          <td class="mono">${r.customsTotal}</td>
+          <td class="mono">${r.received}</td>
+          <td><span class="diff-pill ${r.diff>0?'bad':'ok'}">${r.diff>0? ('کسری '+r.diff) : (r.diff<0? ('مازاد '+Math.abs(r.diff)) : 'تکمیل ✓')}</span></td>
+        </tr>`).join('')}
+      </tbody>`;
+  }
+}
+
+/* ============================================================
+   PRODUCTS MANAGEMENT (merged with batch registry)
+============================================================ */
+function renderProducts(){
+  document.getElementById('prod-count').textContent = PRODUCTS.length;
+  const tbody = document.getElementById('prod-list');
+  if(PRODUCTS.length===0){ tbody.innerHTML = `<tr><td colspan="7" class="empty-state">هنوز محصولی ثبت نشده.</td></tr>`; return; }
+  tbody.innerHTML = PRODUCTS.map((p,i)=>`
+    <tr data-idx="${i}">
+      <td><input type="checkbox" class="prod-check" data-idx="${i}" style="width:auto"></td>
+      <td><input class="mono pr-batchNo" value="${escapeHtml(p.batchNo||'')}"></td>
+      <td><input class="mono pr-gtin" maxlength="13" value="${escapeHtml(p.gtin||'')}"></td>
+      <td><input class="mono pr-lot" value="${escapeHtml(p.lot||'')}"></td>
+      <td><input class="pr-productName" value="${escapeHtml(p.productName||'')}"></td>
+      <td><input type="number" class="mono pr-customsTotal" value="${p.customsTotal||0}" style="width:80px"></td>
+      <td><button class="small-btn danger" onclick="removeProduct(${i})">حذف</button></td>
+    </tr>
+  `).join('');
+  document.getElementById('prod-select-all').checked = false;
+}
+function toggleAllProducts(checked){ document.querySelectorAll('.prod-check').forEach(cb=>cb.checked=checked); }
+
+async function addProduct(){
+  const batchNo = document.getElementById('p-batch').value.trim();
+  const gtin = document.getElementById('p-gtin').value.trim();
+  const lot = document.getElementById('p-lot').value.trim();
+  const productName = document.getElementById('p-name').value.trim();
+  const customsTotal = Number(document.getElementById('p-customs-total').value)||0;
+
+  if(!batchNo || !gtin || !lot || !productName){ showToast('Batch No، GTIN، LOT و نام محصول الزامی است', true); return; }
+  if(!/^\d{13}$/.test(gtin)){ showToast('GTIN باید ۱۳ رقم باشد', true); return; }
+  if(findBatchRegistry(batchNo)){ showToast('این Batch قبلاً در لیست موجود است — از جدول پایین ویرایشش کنید', true); return; }
+
+  PRODUCTS.push({batchNo, gtin, lot, productName, customsTotal});
+  await saveProducts();
+  populateProductDatalist();
+  ['p-batch','p-gtin','p-lot','p-name','p-customs-total'].forEach(id=>document.getElementById(id).value='');
+  renderProducts();
+  showToast('محصول اضافه شد ✓');
+}
+
+async function removeProduct(idx){
+  if(!confirm('این محصول از لیست حذف شود؟')) return;
+  PRODUCTS.splice(idx,1);
+  await saveProducts();
+  populateProductDatalist();
+  renderProducts();
+  showToast('محصول حذف شد');
+}
+
+async function removeSelectedProducts(){
+  const idxs = [...document.querySelectorAll('.prod-check:checked')].map(cb=>Number(cb.dataset.idx));
+  if(idxs.length===0){ showToast('محصولی انتخاب نشده', true); return; }
+  if(!confirm(idxs.length + ' محصول انتخاب‌شده حذف شود؟')) return;
+  PRODUCTS = PRODUCTS.filter((p,i)=>!idxs.includes(i));
+  await saveProducts();
+  populateProductDatalist();
+  renderProducts();
+  showToast('محصولات انتخاب‌شده حذف شدند');
+}
+
+async function removeAllProducts(){
+  if(!confirm('آیا کاملاً مطمئن هستید؟ تمام لیست محصولات حذف می‌شود.')) return;
+  if(!confirm('تأیید نهایی: این عملیات قابل بازگشت نیست. ادامه می‌دهید؟')) return;
+  PRODUCTS = [];
+  await saveProducts();
+  populateProductDatalist();
+  renderProducts();
+  showToast('لیست محصولات کاملاً پاک شد');
+}
+
+async function saveAllProductChanges(){
+  const rows = document.querySelectorAll('#prod-list tr[data-idx]');
+  let saved = 0, skipped = 0;
+  const updated = PRODUCTS.slice();
+  rows.forEach(row=>{
+    const idx = Number(row.dataset.idx);
+    const gtinInput = row.querySelector('.pr-gtin');
+    const gtin = gtinInput.value.trim();
+    const gtinValid = gtin==='' || /^\d{13}$/.test(gtin);
+    gtinInput.classList.toggle('invalid', !gtinValid);
+    if(!gtinValid){ skipped++; return; }
+    updated[idx] = {
+      batchNo: row.querySelector('.pr-batchNo').value.trim(),
+      gtin: gtin,
+      lot: row.querySelector('.pr-lot').value.trim(),
+      productName: row.querySelector('.pr-productName').value.trim(),
+      customsTotal: Number(row.querySelector('.pr-customsTotal').value)||0
+    };
+    saved++;
+  });
+  PRODUCTS = updated;
+  await saveProducts();
+  populateProductDatalist();
+  if(skipped>0) showToast(`${saved} محصول ذخیره شد — ${skipped} مورد به‌دلیل GTIN نامعتبر ذخیره نشد`, true);
+  else showToast(`${saved} محصول با موفقیت ذخیره شد ✓`);
+}
+
+/* ============================================================
+   LAZY-LOAD XLSX LIBRARY (only fetched when an Excel button is
+   actually clicked — never automatically on page open, so the
+   file works fully offline for everything else: entry, search,
+   records, dashboard, PDF reports, backup/restore).
+============================================================ */
+let xlsxLoadPromise = null;
+function ensureXLSX(){
+  if(typeof XLSX !== 'undefined') return Promise.resolve(true);
+  if(xlsxLoadPromise) return xlsxLoadPromise;
+  xlsxLoadPromise = new Promise((resolve)=>{
+    const s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+    s.onload = ()=>resolve(true);
+    s.onerror = ()=>{ xlsxLoadPromise = null; resolve(false); };
+    document.head.appendChild(s);
+  });
+  return xlsxLoadPromise;
+}
+async function requireXLSXOrWarn(){
+  const ok = await ensureXLSX();
+  if(!ok) showToast('این قابلیت (اکسل) نیاز به اتصال اینترنت دارد', true);
+  return ok;
+}
+
+async function downloadProductTemplate(){
+  if(!await requireXLSXOrWarn()) return;
+  const wsData = [['Batch No','GTIN','LOT','Product Name','Customs Total'], ['63580','5902169063580','247725','نمونه محصول','3000']];
+  const ws = XLSX.utils.aoa_to_sheet(wsData);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Template');
+  XLSX.writeFile(wb, 'قالب_محصولات.xlsx');
+}
+
+async function importProductsExcel(){
+  const fileInput = document.getElementById('prod-import-file');
+  const file = fileInput.files[0];
+  if(!file){ showToast('یک فایل انتخاب کنید', true); return; }
+  if(!await requireXLSXOrWarn()) return;
+  const reader = new FileReader();
+  reader.onload = async function(evt){
+    try{
+      const data = new Uint8Array(evt.target.result);
+      const wb = XLSX.read(data, {type:'array'});
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(ws, {defval:''});
+      let added = 0, skipped = 0;
+      rows.forEach(r=>{
+        const batchNo = (r['Batch No']||r['batch no']||r['Batch']||'').toString().trim();
+        const gtin = (r['GTIN']||r['gtin']||'').toString().trim();
+        const lot = (r['LOT']||r['lot']||'').toString().trim();
+        const productName = (r['Product Name']||r['product name']||r['نام محصول']||'').toString().trim();
+        const customsTotal = Number(r['Customs Total']||r['customs total']||r['تعداد کل گمرکی']||0)||0;
+        if(!batchNo || !productName){ skipped++; return; }
+        if(findBatchRegistry(batchNo)){ skipped++; return; }
+        PRODUCTS.push({batchNo, gtin: /^\d{13}$/.test(gtin)?gtin:'', lot, productName, customsTotal});
+        added++;
+      });
+      await saveProducts();
+      populateProductDatalist();
+      renderProducts();
+      fileInput.value = '';
+      showToast(`${added} محصول اضافه شد${skipped?` — ${skipped} ردیف نادیده گرفته شد`:''}`);
+    }catch(err){
+      showToast('خطا در خواندن فایل اکسل', true);
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+/* ============================================================
+   PRINT / PDF REPORTS
+============================================================ */
+function getReportList(type){
+  let list = []; let title = ''; const now = new Date();
+  if(type==='today'){
+    const todayKey = isoDateKey(now);
+    list = ENTRIES.filter(e=>isoDateKey(new Date(e.ts))===todayKey);
+    title = 'گزارش ورود کالا — امروز ' + toJalaliStr(now);
+  } else if(type==='all'){
+    list = ENTRIES.slice();
+    title = 'گزارش کلی ورود کالا به انبار';
+  } else if(type==='batch'){
+    const b = document.getElementById('report-batch-input').value.trim();
+    if(!b){ showToast('شماره Batch را وارد کنید', true); return null; }
+    list = ENTRIES.filter(e=>String(e.batchNo).trim()===b);
+    title = 'گزارش Batch شماره ' + b;
+    if(list.length===0){ showToast('رکوردی برای این Batch یافت نشد', true); return null; }
+  }
+  list = list.slice().sort((a,b)=> new Date(a.ts) - new Date(b.ts));
+  return {list, title};
+}
+function printReport(type){
+  const res = getReportList(type);
+  if(!res) return;
+  const {list, title} = res;
+  const now = new Date();
+  const totalQty = list.reduce((s,e)=>s+Number(e.quantity||0),0);
+  const totalCarton = list.reduce((s,e)=>s+Number(e.carton||0),0);
+  const totalKasri = list.reduce((s,e)=>s+Number(e.kasriBrand||0)+Number(e.kasriCustoms||0),0);
+  const totalWaste = list.reduce((s,e)=>s+Number(e.waste||0),0);
+  const rows = list.map(e=>`
+    <tr>
+      <td>${toJalaliStr(new Date(e.ts))}</td><td>${escapeHtml(e.batchNo)}</td><td>${escapeHtml(e.gtin)}</td>
+      <td>${escapeHtml(e.lot)}</td><td style="text-align:right">${escapeHtml(e.productName)}</td>
+      <td>${escapeHtml(e.expiryDate||'—')}</td><td>${e.partNo}</td><td>${e.quantity}</td><td>${e.carton}</td>
+      <td>${e.kasriBrand}</td><td>${e.kasriCustoms}</td><td>${e.waste}</td>
+    </tr>`).join('');
+  document.getElementById('printArea').innerHTML = `
+    <div class="print-header"><h2>${escapeHtml(SETTINGS.title)} — ${title}</h2><span>تاریخ چاپ: ${toJalaliStr(now)}</span></div>
+    <div class="print-summary">
+      <div>تعداد رکورد: <b>${list.length}</b></div><div>جمع تعداد: <b>${totalQty}</b></div>
+      <div>جمع کارتن: <b>${totalCarton}</b></div><div>جمع کسری: <b>${totalKasri}</b></div><div>جمع ضایعات: <b>${totalWaste}</b></div>
+    </div>
+    <table class="print-table">
+      <thead><tr><th>تاریخ</th><th>Batch</th><th>GTIN</th><th>LOT</th><th>محصول</th><th>انقضا</th><th>پارت</th><th>تعداد</th><th>کارتن</th><th>ک.برند</th><th>ک.گمرک</th><th>ضایعات</th></tr></thead>
+      <tbody>${rows || '<tr><td colspan="12">داده‌ای موجود نیست</td></tr>'}</tbody>
+    </table>`;
+  setTimeout(()=>window.print(), 150);
+}
+
+/* ============================================================
+   EXCEL EXPORTS
+============================================================ */
+async function exportExcel(type){
+  const res = getReportList(type);
+  if(!res) return;
+  if(!await requireXLSXOrWarn()) return;
+  const {list, title} = res;
+  const rows = list.map(e=>({
+    'تاریخ ثبت': toJalaliStr(new Date(e.ts)), 'Batch No': e.batchNo, 'GTIN': e.gtin, 'LOT': e.lot,
+    'Product Name': e.productName, 'تاریخ انقضا': e.expiryDate||'', 'شماره پارت': e.partNo,
+    'تعداد کل': e.quantity, 'کارتن': e.carton, 'کسری برند': e.kasriBrand, 'کسری گمرک': e.kasriCustoms, 'ضایعات': e.waste
+  }));
+  const ws = XLSX.utils.json_to_sheet(rows);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'گزارش');
+  XLSX.writeFile(wb, title.replace(/[\\/:*?"<>|]/g,'') + '.xlsx');
+}
+async function exportOriginalFormat(){
+  if(ENTRIES.length===0){ showToast('رکوردی برای خروجی وجود ندارد', true); return; }
+  if(!await requireXLSXOrWarn()) return;
+  const byBatch = {};
+  ENTRIES.forEach(e=>{ if(!byBatch[e.batchNo]) byBatch[e.batchNo] = []; byBatch[e.batchNo].push(e); });
+  const maxParts = Math.max(...Object.values(byBatch).map(arr=>arr.length));
+  const header = ['Batch No','GTIN','LOT','Expiry Date','Product Name','تعداد کل'];
+  for(let i=1;i<=maxParts;i++){ header.push('جنس '+i,'کارتن '+i,'کسری برند '+i,'کسری گمرک '+i,'ضایعات '+i); }
+  const aoa = [header];
+  Object.keys(byBatch).forEach(batchNo=>{
+    const parts = byBatch[batchNo].slice().sort((a,b)=>a.partNo-b.partNo);
+    const first = parts[0];
+    const totalQty = parts.reduce((s,p)=>s+Number(p.quantity||0),0);
+    const row = [batchNo, first.gtin, first.lot, first.expiryDate||'', first.productName, totalQty];
+    parts.forEach(p=>{ row.push(p.quantity, p.carton, p.kasriBrand, p.kasriCustoms, p.waste); });
+    aoa.push(row);
+  });
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'جنس بیله‌ندا');
+  XLSX.writeFile(wb, 'خروجی_فرمت_اصلی.xlsx');
+}
+
+/* ============================================================
+   ADMIN PANEL
+============================================================ */
+function renderAdmin(){
+  document.getElementById('admin-lock-card').style.display = adminUnlocked ? 'none' : 'block';
+  document.getElementById('admin-panel').style.display = adminUnlocked ? 'block' : 'none';
+  if(adminUnlocked){
+    document.getElementById('set-title').value = SETTINGS.title;
+    document.getElementById('set-subtitle').value = SETTINGS.subtitle;
+    const preview = document.getElementById('logo-preview');
+    preview.innerHTML = SETTINGS.logoDataUrl ? '<img src="'+SETTINGS.logoDataUrl+'">' : 'Bi';
+  }
+}
+function tryAdminUnlock(){
+  const pass = document.getElementById('admin-password').value;
+  if(pass === ADMIN_PASSWORD){
+    adminUnlocked = true;
+    document.getElementById('admin-password').value = '';
+    renderAdmin();
+    showToast('وارد پنل مدیریت شدید ✓');
+  } else { showToast('رمز عبور اشتباه است', true); }
+}
+document.addEventListener('DOMContentLoaded', function(){
+  const logoInput = document.getElementById('logo-file');
+  if(logoInput){
+    logoInput.addEventListener('change', function(e){
+      const file = e.target.files[0];
+      if(!file) return;
+      const reader = new FileReader();
+      reader.onload = function(evt){
+        document.getElementById('logo-preview').innerHTML = '<img src="'+evt.target.result+'">';
+        SETTINGS._pendingLogo = evt.target.result;
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+});
+function resetLogo(){ SETTINGS._pendingLogo = ''; document.getElementById('logo-preview').innerHTML = 'Bi'; }
+async function saveSettings(){
+  SETTINGS.title = document.getElementById('set-title').value.trim() || 'دفتر ورود کالا';
+  SETTINGS.subtitle = document.getElementById('set-subtitle').value.trim();
+  if(SETTINGS._pendingLogo !== undefined){ SETTINGS.logoDataUrl = SETTINGS._pendingLogo; delete SETTINGS._pendingLogo; }
+  await saveSettingsToStorage();
+  applySettingsToUI();
+  showToast('تنظیمات ذخیره شد ✓');
+}
+function downloadBackup(){
+  const backup = { products: PRODUCTS, entries: ENTRIES, settings: SETTINGS, exportedAt: new Date().toISOString() };
+  const blob = new Blob([JSON.stringify(backup, null, 2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = 'پشتیبان_انبار_' + isoDateKey(new Date()) + '.json'; a.click();
+  URL.revokeObjectURL(url);
+}
+function restoreBackup(){
+  const fileInput = document.getElementById('restore-file');
+  const file = fileInput.files[0];
+  if(!file){ showToast('یک فایل پشتیبان انتخاب کنید', true); return; }
+  if(!confirm('بازیابی، تمام داده‌های فعلی را جایگزین می‌کند. ادامه می‌دهید؟')) return;
+  const reader = new FileReader();
+  reader.onload = async function(evt){
+    try{
+      const backup = JSON.parse(evt.target.result);
+      if(backup.products) PRODUCTS = backup.products;
+      if(backup.entries) ENTRIES = backup.entries;
+      if(backup.settings) SETTINGS = Object.assign(SETTINGS, backup.settings);
+      await saveProducts(); await saveEntries(); await saveSettingsToStorage();
+      applySettingsToUI(); populateProductDatalist();
+      showToast('بازیابی با موفقیت انجام شد ✓');
+    }catch(err){ showToast('فایل پشتیبان نامعتبر است', true); }
+  };
+  reader.readAsText(file);
+}
+function downloadAppHtml(){
+  try{
+    const snapshotTag = document.getElementById('embedded-data-snapshot');
+    const originalSnapshotText = snapshotTag.textContent;
+    snapshotTag.textContent = JSON.stringify({ products: PRODUCTS, entries: ENTRIES, settings: SETTINGS });
+
+    const htmlContent = '<!DOCTYPE html>\n' + document.documentElement.outerHTML;
+
+    snapshotTag.textContent = originalSnapshotText; // don't leave a stale copy in the live running page
+
+    const blob = new Blob([htmlContent], {type:'text/html'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = ((SETTINGS.title||'دفتر_ورود_کالا').replace(/[\\/:*?"<>|]/g,'').trim() || 'دفتر_ورود_کالا') + '.html';
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast('فایل HTML دانلود شد ✓ (شامل تمام اطلاعات، عنوان و لوگوی فعلی)');
+  }catch(err){ showToast('خطا در دانلود فایل HTML', true); }
+}
+async function clearAllEntries(){
+  if(!confirm('تمام رکوردهای ورودی حذف شود؟')) return;
+  if(!confirm('تأیید نهایی: این عملیات قابل بازگشت نیست.')) return;
+  ENTRIES = [];
+  await saveEntries();
+  showToast('همهٔ رکوردها پاک شدند');
+}
+async function factoryReset(){
+  if(!confirm('بازنشانی کامل: همهٔ رکوردها پاک و لیست محصولات به حالت اولیه برمی‌گردد. ادامه می‌دهید؟')) return;
+  if(!confirm('تأیید نهایی: این عملیات قابل بازگشت نیست.')) return;
+  ENTRIES = []; PRODUCTS = DEFAULT_PRODUCTS.slice();
+  await saveEntries(); await saveProducts();
+  populateProductDatalist();
+  showToast('بازنشانی کامل انجام شد');
+}
+
+/* ============================================================
+   PWA SERVICE WORKER
+   Only attempted on real http/https origins — a no-op (safely
+   skipped) when this file is opened directly (file://) or inside
+   Claude's artifact sandbox, so it never causes errors there.
+============================================================ */
+if('serviceWorker' in navigator && /^https?:$/.test(location.protocol)){
+  window.addEventListener('load', ()=>{
+    navigator.serviceWorker.register('sw.js').catch(()=>{ /* ignore if unavailable */ });
+  });
+}
+
+/* ============================================================
+   INIT
+============================================================ */
+(async function init(){
+  await loadState();
+  populateProductDatalist();
+  showPage('dashboard');
+})();
+</script>
+</body>
+</html>
